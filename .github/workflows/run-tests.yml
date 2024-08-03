@@ -1,0 +1,107 @@
+name: tests
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  upload-demo-apps:
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    steps:
+      - uses: actions/checkout@v4
+      - shell: bash
+        env:
+          SAUCE_USERNAME: ${{ secrets.SAUCE_USERNAME }}
+          SAUCE_ACCESS_KEY: ${{ secrets.SAUCE_ACCESS_KEY }}
+          working-directory: test/Helpers
+        working-directory: ${{env.working-directory}}
+        run: |
+          curl -F "payload=@./demo_app.apk" -F name=demo_app.apk -u "$SAUCE_USERNAME":"$SAUCE_ACCESS_KEY" "https://api.us-west-1.saucelabs.com/v1/storage/upload"
+
+  run-tests-mobile:
+    runs-on: ubuntu-latest
+    strategy:
+        matrix:
+          python-version: [ 3.7, 3.8, 3.9, '3.10' ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install mock
+          sudo apt-get update
+
+      - name: Run Mobile Robot Tests
+        uses: nick-fields/retry@v3.0.0
+        with:
+          timeout_minutes: 45
+          max_attempts: 3
+          command: robot --randomize suites -i Mobile -e BrokenORWindowsOREdge -v sauce_username:${{ secrets.SAUCE_USERNAME }} -v sauce_key:${{ secrets.SAUCE_ACCESS_KEY }} -v GITHUB_RUN_NUMBER:Github.ApplicationLibrary.$GITHUB_RUN_NUMBER --output reports/output.xml test
+          new_command_on_retry: robot --rerunfailedsuites "reports/output.xml" -i Mobile -e BrokenORWindowsOREdge -v sauce_username:${{ secrets.SAUCE_USERNAME }} -v sauce_key:${{ secrets.SAUCE_ACCESS_KEY }} -v GITHUB_RUN_NUMBER:Github.ApplicationLibrary.$GITHUB_RUN_NUMBER --output reports/output.xml test
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: reports
+          path: reports
+
+  run-tests-unit:
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        python-version: [ 3.7, 3.8, 3.9, '3.10' ]
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Python ${{ matrix.python-version }}
+        uses: actions/setup-python@v5.1.0
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install .
+          pip install coveralls mock pytest-cov
+          sudo apt-get update
+
+      - name: Run Unit Tests
+        run: |
+          pytest --cov=ApplicationLibrary -v
+
+      - name: Coveralls
+        env:
+          GITHUB_TOKEN: ${{ secrets.github_token }}
+          flag-name: run-${{ matrix.python-version }}
+          parallel: true
+        run: |
+          coveralls --service=github
+
+  generate_report:
+        if: always()
+        needs: [run-tests-mobile]
+        runs-on: ubuntu-latest
+        steps:
+        - uses: actions/checkout@v4
+        - name: Download reportsChrome
+          uses: actions/download-artifact@v4
+          with:
+            name: reports
+            path: reports
+        - name: Send report to commit
+          uses: joonvena/robotframework-reporter-action@v2.4
+          with:
+            gh_access_token: ${{ secrets.GITHUB_TOKEN }}
+            show_passed_tests: false
