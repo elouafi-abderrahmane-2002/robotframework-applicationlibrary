@@ -1,160 +1,197 @@
-robotframework-applicationlibrary
-===========
-[![PyPI version](https://badge.fury.io/py/robotframework-applicationlibrary.svg)](https://badge.fury.io/py/robotframework-applicationlibrary)
-[![Downloads](https://pepy.tech/badge/robotframework-applicationlibrary)](https://pepy.tech/project/robotframework-applicationlibrary)
-[![Build Status](https://github.com/Accruent/robotframework-applicationlibrary/workflows/tests/badge.svg?branch=master)](https://github.com/Accruent/robotframework-applicationlibrary/actions?query=workflow%3Atests)
-[![Coverage Status](https://coveralls.io/repos/github/Accruent/robotframework-applicationlibrary/badge.svg?branch=master)](https://coveralls.io/github/Accruent/robotframework-applicationlibrary?branch=master)
-[![CodeFactor](https://www.codefactor.io/repository/github/accruent/robotframework-applicationlibrary/badge)](https://www.codefactor.io/repository/github/accruent/robotframework-applicationlibrary)
+# 🖥️ Desktop Automation — WinAppDriver + Robot Framework
 
-Archive Note
---------------
-WinAppDriver has been [abandonded by Microsoft for some time now](https://github.com/microsoft/WinAppDriver/issues/1550), leaving many users in the dark with no real reason to continue its use.
+Tester une application .NET (WinForms, WPF, UWP) automatiquement, c'est possible
+avec WinAppDriver — le service Microsoft qui expose une API WebDriver pour les
+applications Windows. Combiné avec Robot Framework et DesktopLibrary, on obtient
+un framework de test desktop lisible, maintenable et intégrable en CI/CD.
 
+---
 
-Introduction
---------------
+## Architecture du setup
 
-Robotframework-ApplicationLibrary is a collection of libraries spanning Mobile and Windows Desktop (WinAppDriver) automation using [Robot Framework](https://github.com/robotframework/robotframework).
-These libraries are and extensions of the existing [AppiumLibrary](https://github.com/serhatbolsu/robotframework-appiumlibrary). ApplicationLibrary extends the functionality 
-of AppiumLibrary for Mobile app testing and adds support Windows desktop automation.
+```
+  Application .NET testée (WinForms / WPF / UWP)
+          │
+          │  UIAutomation API (Windows)
+          ▼
+  ┌───────────────────────────────────────────────┐
+  │              WinAppDriver.exe                 │
+  │         (écoute sur port 4723)                │
+  │                                               │
+  │  Expose une API WebDriver/Appium compatible   │
+  │  pour interagir avec les éléments UI Windows  │
+  └────────────────────┬──────────────────────────┘
+                       │  HTTP / JSON Wire Protocol
+                       ▼
+  ┌───────────────────────────────────────────────┐
+  │         Robot Framework + DesktopLibrary      │
+  │                                               │
+  │  Mots-clés : Open Application, Click Element  │
+  │  Input Text, Get Text, Select From ComboBox   │
+  │  Wait Until Element Is Visible, Close App...  │
+  └───────────────────────────────────────────────┘
+```
 
-In the course of our own automation as a team, we found that out-of-the-box AppiumLibrary did not fit our needs for mobile testing and needed major rework inorder to get it working with WinAppDriver for Desktop testing.
-Originally this code was a part of [RobotFramework-Zoomba](https://github.com/Accruent/robotframework-zoomba) but diverging dependency requirements lead to a need for two separate repositories.
+---
 
-See the **Keyword Documentation** for the [Mobile](https://accruent.github.io/robotframework-applicationlibrary/MobileLibraryDocumentation.html) or [Desktop](https://accruent.github.io/robotframework-applicationlibrary/DesktopLibraryDocumentation.html) libraries for more specific information about the functionality.
+## Identifier les éléments UI — Accessibility Insights
 
-Example tests can be found in the [samples directory](https://github.com/Accruent/robotframework-applicationlibrary/tree/master/samples).
+Avant d'écrire un test, il faut trouver les locators des éléments.
+**Accessibility Insights** (outil Microsoft gratuit) inspecte chaque contrôle :
 
-Some Features of the Library
---------------
-#### [Mobile Library](https://accruent.github.io/robotframework-applicationlibrary/MobileLibraryDocumentation.html):
-Extending the [AppiumLibrary](https://github.com/serhatbolsu/robotframework-appiumlibrary) we added some quality of life 'Wait For And' type keywords:
+```
+  Élément : Bouton "Enregistrer"
+  ─────────────────────────────────────────────
+  AutomationId  : btn_save          ← le plus stable
+  Name          : Enregistrer       ← peut changer si i18n
+  ClassName     : Button
+  XPath         : //Button[@AutomationId='btn_save']
+  ─────────────────────────────────────────────
+  Stratégie recommandée : AutomationId > Name > XPath
+```
+
+---
+
+## Suite de tests Robot Framework — application desktop .NET
+
 ```robotframework
-Wait For And Click Element      locator
-Wait For And Click Text         text
-Wait Until Element Contains     locator     text
-```
-As well as additional features that have yet to be implemented in AppiumLibrary:
-```robotframework
-Drag and Drop      source_locator     target_locator
-Drag And Drop By Offset     locator    x_offset     y_offset
-Scroll Down To Text       text
-Scroll Up To Text         text
-```
-
-#### [Desktop Library](https://accruent.github.io/robotframework-applicationlibrary/DesktopLibraryDocumentation.html):
-Also extends [AppiumLibrary](https://github.com/serhatbolsu/robotframework-appiumlibrary) to tailor it Windows desktop automation. This includes enhancements to base keywords such as [Open Application](https://accruent.github.io/robotframework-applicationlibrary/DesktopLibraryDocumentation.html#Open%20Application) or [Click Element](https://accruent.github.io/robotframework-applicationlibrary/DesktopLibraryDocumentation.html#Click%20Element) to perform better for windows. Other notable additions include:
-
-Start and Stop the WinAppDriver as needed (best used for suite setup/teardown):
-```robotframework
-Driver Setup
-Driver Teardown
-```
-Easily switching to new windows or the desktop session:
-```robotframework
-Switch Application      Desktop
-Switch Application By Name     remote_url    new_window_name
-```
-A variety of keywords for controlling the mouse:
-```robotframework
-Mouse Over Element     locator
-Mouse Over and Click Element    locator
-Mouse over and Context Click Element    locator
-Mouse Over By Offset     x_offset    y_offset
-```
-Keywords for dragging and dropping:
-```robotframework
-Drag and Drop      source_locator     target_locator
-Drag And Drop By Offset     locator    x_offset     y_offset
-```
-The ability to send key commands to the application:
-```robotframework
-Send Keys     \\ue00      p     \\ue00
-Send Keys To Element    locator     a     b     c
-```
-Selecting an element from a combobox or a menu:
-```robotframework
-Select Element From ComboBox     combobox_locator      element_locator
-Select Elements From Menu     locator_1    locator_2   locator_n
-Select Elements From Context Menu     locator_1    locator_2   locator_n
-```
-
-Selecting an element by an image file (Appium v1.18.0 and higher only):
-```robotframework
-Wait For And Click Element     image=file.png
-```
-
-For WebView2 applications we can control both the application view and the Edge browser view:
-
-<a target="_blank" rel="noopener noreferrer" href="https://user-images.githubusercontent.com/3010366/122806407-e4759700-d28f-11eb-8b72-779660606d9f.gif"><img src="https://user-images.githubusercontent.com/3010366/122806407-e4759700-d28f-11eb-8b72-779660606d9f.gif" alt="rbmzmun3cR" style="max-width:60%;"></a>
-
-With the split from [RobotFramework-Zoomba](https://github.com/Accruent/robotframework-zoomba), the support for this exact example won't work in this current code. An example of this [can be found in the samples directory for robotframework-zoomba version 2.14.3 or lower](https://github.com/Accruent/robotframework-zoomba/blob/2.14.3/samples/WebView-DesktopTest.robot).
-
-Getting Started
-----------------
-
-The Application library is easily installed using the [`setup.py`](https://github.com/Accruent/robotframework-applicationlibrary/blob/master/setup.py) file in the home directory.
-Simply run the following command to install ApplicationLibrary and it's dependencies:
-
-```python
-pip install robotframework-applicationlibrary
-```
-
-If you decide to pull the repo locally to make contributions or just want to play around with the code
-you can install ApplicationLibrary by running the following from the *root directory*:
-```python
-pip install .
-```
-
-or if you intend to run unit tests:
-```python
-pip install .[testing]
-```
-
-To access the keywords in the library simply add the following to your robot file settings (depending on what you are testing):
-```python
 *** Settings ***
-Library    ApplicationLibrary.MobileLibrary
-Library    ApplicationLibrary.DesktopLibrary
+Library     AppiumLibrary
+Library     DesktopLibrary
+Suite Setup     Start WinAppDriver
+Suite Teardown  Stop WinAppDriver
+
+*** Variables ***
+${APP_PATH}     C:\\Program Files\\MonApp\\MonApp.exe
+${REMOTE_URL}   http://127.0.0.1:4723
+
+*** Test Cases ***
+
+Ouverture de l application
+    [Documentation]    Vérifie que l'application démarre et affiche l'écran principal
+    Open Application    ${REMOTE_URL}
+    ...    app=${APP_PATH}
+    ...    platformName=Windows
+    ...    deviceName=WindowsPC
+    Wait Until Element Is Visible    accessibility_id=main_window    timeout=10s
+    Element Should Be Visible        accessibility_id=menu_bar
+
+Login avec identifiants valides
+    [Documentation]    Vérifie le flux de connexion complet
+    Click Element           accessibility_id=btn_login
+    Input Text              accessibility_id=field_username    admin
+    Input Text              accessibility_id=field_password    secret123
+    Click Element           accessibility_id=btn_submit
+    Wait Until Element Is Visible    accessibility_id=dashboard    timeout=5s
+    Element Text Should Be  accessibility_id=welcome_label    Bienvenue, admin
+
+Saisie dans un formulaire
+    [Documentation]    Teste la saisie et validation d'un formulaire
+    Click Element           accessibility_id=menu_nouveau
+    Select Elements From Menu   accessibility_id=menu_fichier
+    ...                         accessibility_id=menu_nouveau_document
+    Input Text              accessibility_id=field_titre    Test Document
+    Select Element From ComboBox
+    ...    accessibility_id=combo_categorie
+    ...    accessibility_id=item_rapport
+    Click Element           accessibility_id=btn_enregistrer
+    Element Should Be Visible   accessibility_id=notification_succes
+
+Détection d une anomalie — champ obligatoire vide
+    [Documentation]    Vérifie qu'une erreur s'affiche si le champ titre est vide
+    Click Element           accessibility_id=btn_enregistrer
+    Element Should Be Visible   accessibility_id=error_titre_requis
+    Element Text Should Be      accessibility_id=error_titre_requis
+    ...    Le titre est obligatoire
+
+*** Keywords ***
+Start WinAppDriver
+    [Documentation]    Démarre le service WinAppDriver en arrière-plan
+    Start Process    WinAppDriver.exe    cwd=C:\\Program Files (x86)\\Windows Application Driver
+    Sleep    2s    # Attendre que le service soit prêt
+
+Stop WinAppDriver
+    Close All Applications
+    Terminate All Processes
 ```
 
-Additional Setup Information
----------------------------------
+---
 
-If you plan to run Mobile automation you will need to have a running appium server. To do so first have [Node](https://nodejs.org/en/download/)
-installed and then run the following:
+## Sikuli — tests basés sur l'image
+
+Pour les éléments sans AutomationId accessibles (contrôles tiers, zones graphiques),
+Sikuli localise par reconnaissance d'image :
+
 ```python
-npm install -g appium
-appium
+# custom_library/SikuliKeywords.py
+from robot.api.deco import keyword
+import pyautogui
+import cv2
+import numpy as np
+
+class SikuliKeywords:
+
+    @keyword("Click Image")
+    def click_image(self, image_path: str, confidence: float = 0.9):
+        """
+        Clique sur l'élément correspondant à l'image fournie.
+        Utile pour les contrôles sans AutomationId.
+        """
+        location = pyautogui.locateOnScreen(image_path, confidence=confidence)
+        if location is None:
+            raise AssertionError(f"Image non trouvée : {image_path}")
+        center = pyautogui.center(location)
+        pyautogui.click(center)
+
+    @keyword("Image Should Be Visible")
+    def image_should_be_visible(self, image_path: str):
+        """Vérifie qu'un élément visuel est présent à l'écran."""
+        location = pyautogui.locateOnScreen(image_path, confidence=0.85)
+        if location is None:
+            raise AssertionError(f"Élément visuel absent : {image_path}")
 ```
 
-To use the `image` locator strategy you will need to install [opencv4nodejs](https://github.com/justadudewhohacks/opencv4nodejs) via the following command:
-```python
-npm install -g opencv4nodejs
+---
+
+## Documentation de cas de test manuel (template)
+
+```
+ID          : TC-LOGIN-001
+Titre       : Connexion avec identifiants valides
+Module      : Authentification
+Priorité    : HAUTE
+Prérequis   : Application lancée, écran de login affiché
+
+Étapes :
+  1. Saisir "admin" dans le champ Nom d'utilisateur
+  2. Saisir "password123" dans le champ Mot de passe
+  3. Cliquer sur le bouton "Se connecter"
+
+Résultat attendu :
+  - Redirection vers le tableau de bord
+  - Message "Bienvenue, admin" affiché
+  - Aucun message d'erreur visible
+
+Résultat obtenu : [À remplir]
+Statut       : [ ] PASS   [ ] FAIL   [ ] BLOCKED
+Anomalie     : [Numéro si FAIL]
 ```
 
-Alternatively [Appium Desktop](https://github.com/appium/appium-desktop/releases) can be used.
+---
 
-For Windows automation we suggest [installing and using the WinAppDriver](https://github.com/Microsoft/WinAppDriver/releases) without Appium as it seems to be a bit faster and more stable.
+## Ce que j'ai appris
 
-Make sure to [enable developer mode on your system](https://www.howtogeek.com/292914/what-is-developer-mode-in-windows-10/#:~:text=How%20to%20Enable%20Developer%20Mode,be%20put%20into%20Developer%20Mode.) to allow the WinAppDriver to work.
+La stratégie de localisation des éléments UI est critique pour la stabilité des tests.
+`AutomationId` est le locator le plus robuste — il ne change pas quand l'interface
+est redessinée ou traduite. `Name` casse dès qu'on change le label d'un bouton.
+`XPath` sur des contrôles Windows peut être extrêmement fragile si la hiérarchie
+de l'arbre UI change entre deux versions de l'application.
 
-Examples
-------------
-Example tests can be found in the [samples directory](https://github.com/Accruent/robotframework-applicationlibrary/tree/master/samples).
+La règle : toujours demander aux développeurs de l'application testée d'ajouter
+des `AutomationId` explicites sur tous les contrôles importants. C'est 5 minutes
+de travail pour eux, et ça évite des heures de maintenance des tests.
 
-The [test directory](https://github.com/Accruent/robotframework-applicationlibrary/tree/master/test) may also contain tests but be aware that these are used for testing releases and may not be as straight forward to use as the ones in the [samples directory](https://github.com/Accruent/robotframework-applicationlibrary/tree/master/samples).
+---
 
-
-Contributing
------------------
-
-To make contributions please refer to the [CONTRIBUTING](https://github.com/Accruent/robotframework-applicationlibrary/blob/master/CONTRIBUTING.rst) guidelines.
-
-See the [.githooks](https://github.com/Accruent/robotframework-applicationlibrary/tree/master/.githooks) directory for scripts to help in development. 
-
-Support
----------------
-General Robot Framework questions should be directed to the [community forum](https://forum.robotframework.org/).
-
-For questions and issues specific to ApplicationLibrary please create an [issue](https://github.com/Accruent/robotframework-applicationlibrary/issues) here on Github.
+*Projet réalisé dans le cadre de ma formation ingénieur — ENSET Mohammedia*
+*Par **Abderrahmane Elouafi** · [LinkedIn](https://www.linkedin.com/in/abderrahmane-elouafi-43226736b/) · [Portfolio](https://my-first-porfolio-six.vercel.app/)*
